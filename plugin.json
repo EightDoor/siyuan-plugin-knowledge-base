@@ -21,5 +21,6 @@
   "funding": {
     "custom": []
   },
+  "i18n": ["en_US", "zh_CN"],
   "keywords": ["rag", "knowledge-base", "ai", "embedding"]
 }

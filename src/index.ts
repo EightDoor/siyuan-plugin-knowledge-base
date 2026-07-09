@@ -216,7 +216,7 @@ export default class KnowledgeBasePlugin extends Plugin {
     const updateStatus = () => {
       const status = engine.getIndexStatus()
       syncingEl.style.display = status.isSyncing ? 'inline' : 'none'
-      const parts: string[] = [`\u{1F4CA} ${i18n.indexed}: ${status.indexedBlocks} \u5757`]
+      const parts: string[] = [`\u{1F4CA} ${i18n.indexed}: ${status.indexedBlocks} ${i18n.blocks || '\u5757'}`]
       if (status.lastSyncTime) {
         parts.push(`| ${i18n.recent}: ${this.formatTime(Date.now() - status.lastSyncTime)}`)
       }
