@@ -76,29 +76,47 @@ export default class KnowledgeBasePlugin extends Plugin {
       confirmCallback: () => {
         this.saveData(CONFIG_FILE, this.config)
         this.engine?.updateConfig(this.config)
-        showMessage('配置已保存')
+        showMessage(this.i18n.saveSuccess)
       },
     })
 
-    this.addSelectSetting('LLM 提供商', '选择 LLM 服务', this.config.llm, 'provider', [
-      { value: 'ollama', label: 'Ollama' },
-      { value: 'openai', label: 'OpenAI 兼容' },
-    ])
-    this.addInputSetting('LLM Base URL', 'API 基础地址', this.config.llm, 'baseUrl')
-    this.addInputSetting('LLM 模型', '模型名称', this.config.llm, 'model')
-    this.addInputSetting('LLM API Key', 'OpenAI 兼容 API 时需要', this.config.llm, 'apiKey', true)
+    this.addSelectSetting(
+      this.i18n.settingsLlmProvider,
+      this.i18n.settingsLlmProviderDesc,
+      this.config.llm,
+      'provider',
+      [
+        { value: 'ollama', label: this.i18n.providerOllama },
+        { value: 'openai', label: this.i18n.providerOpenai },
+      ],
+    )
+    this.addInputSetting(this.i18n.settingsLlmBaseUrl, this.i18n.settingsLlmBaseUrlDesc, this.config.llm, 'baseUrl')
+    this.addInputSetting(this.i18n.settingsLlmModel, this.i18n.settingsLlmModelDesc, this.config.llm, 'model')
+    this.addInputSetting(this.i18n.settingsLlmApiKey, this.i18n.settingsLlmApiKeyDesc, this.config.llm, 'apiKey', true)
 
-    this.addSelectSetting('Embedding 模式', '向量化方式', this.config.embedding, 'mode', [
-      { value: 'remote', label: '远程 API' },
-      { value: 'local', label: '本地 (Transformers.js)' },
-    ])
-    this.addInputSetting('Embedding 模型', '模型名称', this.config.embedding, 'model')
+    this.addSelectSetting(
+      this.i18n.settingsEmbeddingMode,
+      this.i18n.settingsEmbeddingModeDesc,
+      this.config.embedding,
+      'mode',
+      [
+        { value: 'remote', label: this.i18n.embeddingRemote },
+        { value: 'local', label: this.i18n.embeddingLocal },
+      ],
+    )
+    this.addInputSetting(this.i18n.settingsEmbeddingModel, this.i18n.settingsEmbeddingModelDesc, this.config.embedding, 'model')
 
-    this.addSelectSetting('向量数据库类型', '向量存储后端', this.config.vectorStore, 'type', [
-      { value: 'chroma', label: 'ChromaDB' },
-      { value: 'milvus', label: 'Milvus' },
-    ])
-    this.addInputSetting('向量数据库 URL', '服务地址', this.config.vectorStore, 'baseUrl')
+    this.addSelectSetting(
+      this.i18n.settingsVectorType,
+      this.i18n.settingsVectorTypeDesc,
+      this.config.vectorStore,
+      'type',
+      [
+        { value: 'chroma', label: this.i18n.storageChroma },
+        { value: 'milvus', label: this.i18n.storageMilvus },
+      ],
+    )
+    this.addInputSetting(this.i18n.settingsVectorUrl, this.i18n.settingsVectorUrlDesc, this.config.vectorStore, 'baseUrl')
   }
 
   private addSelectSetting(
@@ -153,7 +171,7 @@ export default class KnowledgeBasePlugin extends Plugin {
         position: 'RightBottom',
         size: { width: 420, height: 0 },
         icon: 'iconBookmark',
-        title: '知识库',
+        title: this.i18n.name,
       },
       type: DOCK_TYPE,
       init: (dock) => {
@@ -162,17 +180,17 @@ export default class KnowledgeBasePlugin extends Plugin {
   <div class="kb-status-bar">
     <div class="kb-status-info">
       <span class="kb-status-text"></span>
-      <span class="kb-status-syncing" style="display:none">同步中...</span>
+      <span class="kb-status-syncing" style="display:none">${this.i18n.syncing}</span>
     </div>
     <div class="kb-status-actions">
-      <button id="kb-sync-btn" class="b3-button b3-button--text kb-btn-sm">同步</button>
-      <button id="kb-rebuild-btn" class="b3-button b3-button--text kb-btn-sm">重建</button>
+      <button id="kb-sync-btn" class="b3-button b3-button--text kb-btn-sm">${this.i18n.sync}</button>
+      <button id="kb-rebuild-btn" class="b3-button b3-button--text kb-btn-sm">${this.i18n.rebuild}</button>
     </div>
   </div>
   <div id="kb-messages" class="kb-messages"></div>
   <div class="kb-input-area">
-    <textarea id="kb-textarea" class="kb-input-textarea" placeholder="输入问题... Enter 发送, Shift+Enter 换行" rows="2"></textarea>
-    <button id="kb-send-btn" class="kb-send-btn">发送</button>
+    <textarea id="kb-textarea" class="kb-input-textarea" placeholder="${this.i18n.inputPlaceholder}" rows="2"></textarea>
+    <button id="kb-send-btn" class="kb-send-btn">${this.i18n.send}</button>
   </div>
 </div>`
 
@@ -184,6 +202,7 @@ export default class KnowledgeBasePlugin extends Plugin {
   private initChatBindings(container: HTMLElement): void {
     const engine = this.engine
     const app = this.app
+    const i18n = this.i18n
     if (!engine) return
 
     const messagesEl = container.querySelector('#kb-messages') as HTMLElement
@@ -196,14 +215,10 @@ export default class KnowledgeBasePlugin extends Plugin {
 
     const updateStatus = () => {
       const status = engine.getIndexStatus()
-      if (status.isSyncing) {
-        syncingEl.style.display = 'inline'
-      } else {
-        syncingEl.style.display = 'none'
-      }
-      const parts: string[] = [`\u{1F4CA} \u5DF2\u7D22\u5F15: ${status.indexedBlocks} \u5757`]
+      syncingEl.style.display = status.isSyncing ? 'inline' : 'none'
+      const parts: string[] = [`\u{1F4CA} ${i18n.indexed}: ${status.indexedBlocks} \u5757`]
       if (status.lastSyncTime) {
-        parts.push(`| \u6700\u8FD1: ${this.formatTime(Date.now() - status.lastSyncTime)}`)
+        parts.push(`| ${i18n.recent}: ${this.formatTime(Date.now() - status.lastSyncTime)}`)
       }
       statusTextEl.textContent = parts.join(' ')
     }
@@ -220,7 +235,7 @@ export default class KnowledgeBasePlugin extends Plugin {
 
       const label = document.createElement('div')
       label.className = `kb-message-label ${msg.role === 'user' ? 'user' : ''}`
-      label.textContent = msg.role === 'user' ? '\u4F60' : 'AI'
+      label.textContent = msg.role === 'user' ? i18n.you : i18n.aiLabel
       msgDiv.appendChild(label)
 
       const text = document.createElement('div')
@@ -234,7 +249,7 @@ export default class KnowledgeBasePlugin extends Plugin {
 
         const thinkHeader = document.createElement('div')
         thinkHeader.className = 'kb-thinking-header'
-        thinkHeader.innerHTML = '<span>\u{1F914} \u601D\u8003\u8FC7\u7A0B</span><span class="kb-thinking-toggle">\u25B6</span>'
+        thinkHeader.innerHTML = `<span>\u{1F914} ${i18n.thinking}</span><span class="kb-thinking-toggle">\u25B6</span>`
 
         const thinkBody = document.createElement('div')
         thinkBody.className = 'kb-thinking-body'
@@ -256,11 +271,11 @@ export default class KnowledgeBasePlugin extends Plugin {
 
         const sourcesTitle = document.createElement('div')
         sourcesTitle.className = 'kb-sources-title'
-        sourcesTitle.textContent = '\u{1F4DA} \u53C2\u8003\u6765\u6E90'
+        sourcesTitle.textContent = `\u{1F4DA} ${i18n.sources}`
         sourcesDiv.appendChild(sourcesTitle)
 
         msg.sources.forEach((source: any, idx: number) => {
-          const sourceItem = this.buildSourceItem(source, idx, app)
+          const sourceItem = this.buildSourceItem(source, idx, app, i18n)
           sourcesDiv.appendChild(sourceItem)
         })
 
@@ -302,7 +317,7 @@ export default class KnowledgeBasePlugin extends Plugin {
       } catch (error) {
         appendMessage({
           role: 'assistant',
-          content: `\u9519\u8BEF: ${error instanceof Error ? error.message : String(error)}`,
+          content: `${i18n.errorLabel}: ${error instanceof Error ? error.message : String(error)}`,
         })
       } finally {
         sendBtn.disabled = false
@@ -318,24 +333,24 @@ export default class KnowledgeBasePlugin extends Plugin {
     })
   }
 
-  private buildSourceItem(source: any, idx: number, app: any): HTMLElement {
+  private buildSourceItem(source: any, idx: number, app: any, i18n: any): HTMLElement {
     const item = document.createElement('div')
     item.className = 'kb-source-item'
 
-      const header = document.createElement('div')
-      header.className = 'kb-source-header'
+    const header = document.createElement('div')
+    header.className = 'kb-source-header'
 
-      const nameSpan = document.createElement('span')
-      nameSpan.className = 'kb-source-name'
-      nameSpan.textContent = `[${idx + 1}] ${source.docName}`
-      header.appendChild(nameSpan)
+    const nameSpan = document.createElement('span')
+    nameSpan.className = 'kb-source-name'
+    nameSpan.textContent = `[${idx + 1}] ${source.docName}`
+    header.appendChild(nameSpan)
 
-      const scoreSpan = document.createElement('span')
-      scoreSpan.className = 'kb-source-score'
-      scoreSpan.textContent = `\u76F8\u4F3C\u5EA6: ${source.score.toFixed(2)}`
-      header.appendChild(scoreSpan)
+    const scoreSpan = document.createElement('span')
+    scoreSpan.className = 'kb-source-score'
+    scoreSpan.textContent = `${i18n.similarity}: ${source.score.toFixed(2)}`
+    header.appendChild(scoreSpan)
 
-      item.appendChild(header)
+    item.appendChild(header)
 
     const preview = document.createElement('div')
     preview.className = 'kb-source-preview'
@@ -344,7 +359,7 @@ export default class KnowledgeBasePlugin extends Plugin {
 
     const link = document.createElement('button')
     link.className = 'kb-source-link'
-    link.textContent = '\u8DF3\u8F6C\u5230\u7B14\u8BB0 \u2192'
+    link.textContent = i18n.navigate
     link.addEventListener('click', () => {
       openTab({
         app,
@@ -361,9 +376,9 @@ export default class KnowledgeBasePlugin extends Plugin {
   }
 
   private formatTime(ms: number): string {
-    if (ms < 60000) return '\u521A\u521A'
-    if (ms < 3600000) return `${Math.floor(ms / 60000)} \u5206\u949F\u524D`
-    if (ms < 86400000) return `${Math.floor(ms / 3600000)} \u5C0F\u65F6\u524D`
-    return `${Math.floor(ms / 86400000)} \u5929\u524D`
+    if (ms < 60000) return this.i18n.justNow
+    if (ms < 3600000) return `${Math.floor(ms / 60000)} ${this.i18n.minutesAgo}`
+    if (ms < 86400000) return `${Math.floor(ms / 3600000)} ${this.i18n.hoursAgo}`
+    return `${Math.floor(ms / 86400000)} ${this.i18n.daysAgo}`
   }
 }
