@@ -1,7 +1,7 @@
 {
   "name": "siyuan-plugin-knowledge-base",
-  "author": "Eightdoor",
-  "url": "https://github.com/yourname/siyuan-plugin-knowledge-base",
+  "author": "EightDoor",
+  "url": "https://github.com/EightDoor/siyuan-plugin-knowledge-base",
   "version": "1.0.0",
   "minAppVersion": "3.0.0",
   "backends": ["windows", "linux", "docker"],
