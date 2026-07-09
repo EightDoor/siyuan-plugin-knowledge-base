@@ -5,12 +5,24 @@ import { HashCache } from '../utils/hash'
 import { chunkByBlock } from '../utils/chunk'
 import { querySQL } from '../utils/siyuan'
 
+const STATE_FILE = 'index-state.json'
+
+export interface SchedulerState {
+  hashCache: Record<string, string>
+  indexedBlocks: number
+  lastSyncTime: number
+}
+
 export class IndexScheduler {
   private config: PluginConfig
   private vectorStore: VectorStore
   private embeddingProvider: EmbeddingProvider
   private hashCache: HashCache
   private syncTimer: ReturnType<typeof setInterval> | null = null
+  private saveState: (state: SchedulerState) => Promise<void>
+  private loadState: () => Promise<SchedulerState | null>
+  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null
+
   private status: IndexStatus = {
     totalBlocks: 0,
     indexedBlocks: 0,
@@ -18,11 +30,33 @@ export class IndexScheduler {
     isSyncing: false,
   }
 
-  constructor(config: PluginConfig, vectorStore: VectorStore, embeddingProvider: EmbeddingProvider) {
+  constructor(
+    config: PluginConfig,
+    vectorStore: VectorStore,
+    embeddingProvider: EmbeddingProvider,
+    saveState: (state: SchedulerState) => Promise<void>,
+    loadState: () => Promise<SchedulerState | null>,
+  ) {
     this.config = config
     this.vectorStore = vectorStore
     this.embeddingProvider = embeddingProvider
     this.hashCache = new HashCache()
+    this.saveState = saveState
+    this.loadState = loadState
+  }
+
+  async restore(): Promise<void> {
+    try {
+      const saved = await this.loadState()
+      if (saved && saved.hashCache && Object.keys(saved.hashCache).length > 0) {
+        this.hashCache.fromJSON(saved.hashCache)
+        this.status.indexedBlocks = saved.indexedBlocks || 0
+        this.status.lastSyncTime = saved.lastSyncTime || 0
+        console.info(`[IndexScheduler] restored state: ${this.hashCache.size()} hashed, ${this.status.indexedBlocks} indexed`)
+      }
+    } catch (error) {
+      console.warn('[IndexScheduler] failed to restore state:', error)
+    }
   }
 
   start(): void {
@@ -38,6 +72,7 @@ export class IndexScheduler {
       clearInterval(this.syncTimer)
       this.syncTimer = null
     }
+    this.flushState()
   }
 
   getStatus(): IndexStatus {
@@ -59,6 +94,7 @@ export class IndexScheduler {
         WHERE b.type NOT IN ('d', 'b', 'l', 'i', 's', 'callout')
         AND b.content IS NOT NULL
         AND b.content != ''
+        AND b.updated IS NOT NULL
       `)
 
       this.status.totalBlocks = blocks.length
@@ -103,6 +139,8 @@ export class IndexScheduler {
 
       this.status.indexedBlocks += changedBlocks.length
       this.status.lastSyncTime = Date.now()
+
+      this.debounceSaveState()
     } catch (error) {
       console.error('[IndexScheduler] sync failed:', error)
     } finally {
@@ -115,11 +153,33 @@ export class IndexScheduler {
     await this.vectorStore.clear()
     this.status.indexedBlocks = 0
     await this.sync()
+    this.flushState()
   }
 
   async clearIndex(): Promise<void> {
     this.hashCache.clear()
     await this.vectorStore.clear()
     this.status.indexedBlocks = 0
+    this.flushState()
+  }
+
+  private debounceSaveState(): void {
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer)
+    }
+    this.saveDebounceTimer = setTimeout(() => {
+      this.flushState()
+    }, 2000)
+  }
+
+  private flushState(): void {
+    const state: SchedulerState = {
+      hashCache: this.hashCache.toJSON(),
+      indexedBlocks: this.status.indexedBlocks,
+      lastSyncTime: this.status.lastSyncTime,
+    }
+    this.saveState(state).catch(err => {
+      console.warn('[IndexScheduler] failed to save state:', err)
+    })
   }
 }

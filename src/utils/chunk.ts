@@ -64,7 +64,14 @@ export function chunkByText(text: string, options: Partial<ChunkOptions> = {}): 
       end,
     })
 
+    if (end >= text.length) {
+      break
+    }
+
     start = end - opts.overlap
+    if (start >= end) {
+      break
+    }
     index++
   }
 

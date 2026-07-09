@@ -10,7 +10,7 @@ import type {
   Message,
 } from '../types'
 import { VectorStoreFactory } from '../storage/factory'
-import { IndexScheduler } from '../scheduler/IndexScheduler'
+import { IndexScheduler, type SchedulerState } from '../scheduler/IndexScheduler'
 import { OllamaEmbeddingProvider } from '../providers/embedding/ollama'
 import { OpenAIEmbeddingProvider } from '../providers/embedding/openai'
 import { LocalEmbeddingProvider } from '../providers/embedding/local'
@@ -24,15 +24,28 @@ export class KnowledgeEngine {
   private embeddingProvider: EmbeddingProvider
   private llmProvider: LLMProvider
   private scheduler: IndexScheduler
+  private saveState: (state: SchedulerState) => Promise<void>
 
-  constructor(config: PluginConfig, app: App) {
+  constructor(
+    config: PluginConfig,
+    app: App,
+    saveState: (state: SchedulerState) => Promise<void>,
+    loadState: () => Promise<SchedulerState | null>,
+  ) {
     this.config = config
     this.app = app
+    this.saveState = saveState
 
     this.vectorStore = VectorStoreFactory.create(config.vectorStore)
     this.embeddingProvider = this.createEmbeddingProvider(config.embedding)
     this.llmProvider = this.createLLMProvider(config.llm)
-    this.scheduler = new IndexScheduler(config, this.vectorStore, this.embeddingProvider)
+    this.scheduler = new IndexScheduler(
+      config,
+      this.vectorStore,
+      this.embeddingProvider,
+      saveState,
+      loadState,
+    )
   }
 
   private createEmbeddingProvider(ec: PluginConfig['embedding']): EmbeddingProvider {
@@ -68,11 +81,19 @@ export class KnowledgeEngine {
     this.vectorStore = VectorStoreFactory.create(config.vectorStore)
     this.embeddingProvider = this.createEmbeddingProvider(config.embedding)
     this.llmProvider = this.createLLMProvider(config.llm)
-    this.scheduler = new IndexScheduler(config, this.vectorStore, this.embeddingProvider)
-    this.scheduler.start()
+    this.scheduler = new IndexScheduler(
+      config,
+      this.vectorStore,
+      this.embeddingProvider,
+      this.saveState,
+      () => Promise.resolve(null),
+    )
+
+    this.scheduler.restore().then(() => this.scheduler.start())
   }
 
-  start(): void {
+  async start(): Promise<void> {
+    await this.scheduler.restore()
     this.scheduler.start()
   }
 

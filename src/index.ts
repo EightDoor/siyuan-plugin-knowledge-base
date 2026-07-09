@@ -1,8 +1,11 @@
 import { Plugin, Setting, openTab, showMessage } from 'siyuan'
 import type { PluginConfig } from './types'
 import { KnowledgeEngine } from './core/KnowledgeEngine'
+import type { SchedulerState } from './scheduler/IndexScheduler'
+import './style.css'
 
 const CONFIG_FILE = 'config.json'
+const STATE_FILE = 'index-state.json'
 const DOCK_TYPE = 'knowledge-base-dock'
 
 const DEFAULT_CONFIG: PluginConfig = {
@@ -42,7 +45,12 @@ export default class KnowledgeBasePlugin extends Plugin {
       this.config = { ...DEFAULT_CONFIG, ...savedConfig }
     }
 
-    this.engine = new KnowledgeEngine(this.config, this.app)
+    this.engine = new KnowledgeEngine(
+      this.config,
+      this.app,
+      (state) => this.saveData(STATE_FILE, state),
+      () => this.loadData(STATE_FILE),
+    )
 
     this.registerSettings()
     this.registerDock()
@@ -72,117 +80,67 @@ export default class KnowledgeBasePlugin extends Plugin {
       },
     })
 
+    this.addSelectSetting('LLM 提供商', '选择 LLM 服务', this.config.llm, 'provider', [
+      { value: 'ollama', label: 'Ollama' },
+      { value: 'openai', label: 'OpenAI 兼容' },
+    ])
+    this.addInputSetting('LLM Base URL', 'API 基础地址', this.config.llm, 'baseUrl')
+    this.addInputSetting('LLM 模型', '模型名称', this.config.llm, 'model')
+    this.addInputSetting('LLM API Key', 'OpenAI 兼容 API 时需要', this.config.llm, 'apiKey', true)
+
+    this.addSelectSetting('Embedding 模式', '向量化方式', this.config.embedding, 'mode', [
+      { value: 'remote', label: '远程 API' },
+      { value: 'local', label: '本地 (Transformers.js)' },
+    ])
+    this.addInputSetting('Embedding 模型', '模型名称', this.config.embedding, 'model')
+
+    this.addSelectSetting('向量数据库类型', '向量存储后端', this.config.vectorStore, 'type', [
+      { value: 'chroma', label: 'ChromaDB' },
+      { value: 'milvus', label: 'Milvus' },
+    ])
+    this.addInputSetting('向量数据库 URL', '服务地址', this.config.vectorStore, 'baseUrl')
+  }
+
+  private addSelectSetting(
+    title: string,
+    description: string,
+    target: any,
+    key: string,
+    options: { value: string; label: string }[],
+  ): void {
     this.setting.addItem({
-      title: 'LLM 提供商',
-      description: '选择 LLM 服务',
+      title,
+      description,
       createActionElement: () => {
         const select = document.createElement('select')
         select.className = 'b3-select'
-        select.innerHTML = '<option value="ollama">Ollama</option><option value="openai">OpenAI 兼容</option>'
-        select.value = this.config.llm.provider
+        select.innerHTML = options.map(o => `<option value="${o.value}">${o.label}</option>`).join('')
+        select.value = target[key] ?? ''
         select.addEventListener('change', () => {
-          this.config.llm.provider = select.value as 'ollama' | 'openai'
+          target[key] = select.value
         })
         return select
       },
     })
+  }
 
+  private addInputSetting(
+    title: string,
+    description: string,
+    target: any,
+    key: string,
+    isPassword: boolean = false,
+  ): void {
     this.setting.addItem({
-      title: 'LLM Base URL',
-      description: 'API 基础地址',
+      title,
+      description,
       createActionElement: () => {
         const input = document.createElement('input')
         input.className = 'b3-text-field fn__block'
-        input.value = this.config.llm.baseUrl
+        if (isPassword) input.type = 'password'
+        input.value = target[key] ?? ''
         input.addEventListener('change', () => {
-          this.config.llm.baseUrl = input.value
-        })
-        return input
-      },
-    })
-
-    this.setting.addItem({
-      title: 'LLM 模型',
-      description: '模型名称',
-      createActionElement: () => {
-        const input = document.createElement('input')
-        input.className = 'b3-text-field fn__block'
-        input.value = this.config.llm.model
-        input.addEventListener('change', () => {
-          this.config.llm.model = input.value
-        })
-        return input
-      },
-    })
-
-    this.setting.addItem({
-      title: 'LLM API Key',
-      description: 'OpenAI 兼容 API 时需要',
-      createActionElement: () => {
-        const input = document.createElement('input')
-        input.className = 'b3-text-field fn__block'
-        input.type = 'password'
-        input.value = this.config.llm.apiKey || ''
-        input.addEventListener('change', () => {
-          this.config.llm.apiKey = input.value
-        })
-        return input
-      },
-    })
-
-    this.setting.addItem({
-      title: 'Embedding 模式',
-      description: '向量化方式',
-      createActionElement: () => {
-        const select = document.createElement('select')
-        select.className = 'b3-select'
-        select.innerHTML = '<option value="remote">远程 API</option><option value="local">本地 (Transformers.js)</option>'
-        select.value = this.config.embedding.mode
-        select.addEventListener('change', () => {
-          this.config.embedding.mode = select.value as 'remote' | 'local'
-        })
-        return select
-      },
-    })
-
-    this.setting.addItem({
-      title: 'Embedding 模型',
-      description: '模型名称',
-      createActionElement: () => {
-        const input = document.createElement('input')
-        input.className = 'b3-text-field fn__block'
-        input.value = this.config.embedding.model || ''
-        input.addEventListener('change', () => {
-          this.config.embedding.model = input.value
-        })
-        return input
-      },
-    })
-
-    this.setting.addItem({
-      title: '向量数据库类型',
-      description: '向量存储后端',
-      createActionElement: () => {
-        const select = document.createElement('select')
-        select.className = 'b3-select'
-        select.innerHTML = '<option value="chroma">ChromaDB</option><option value="milvus">Milvus</option>'
-        select.value = this.config.vectorStore.type
-        select.addEventListener('change', () => {
-          this.config.vectorStore.type = select.value as 'chroma' | 'milvus'
-        })
-        return select
-      },
-    })
-
-    this.setting.addItem({
-      title: '向量数据库 URL',
-      description: '服务地址',
-      createActionElement: () => {
-        const input = document.createElement('input')
-        input.className = 'b3-text-field fn__block'
-        input.value = this.config.vectorStore.baseUrl
-        input.addEventListener('change', () => {
-          this.config.vectorStore.baseUrl = input.value
+          target[key] = input.value
         })
         return input
       },
@@ -200,21 +158,23 @@ export default class KnowledgeBasePlugin extends Plugin {
       type: DOCK_TYPE,
       init: (dock) => {
         dock.element.innerHTML = `
-          <div id="kb-app" style="height:100%;display:flex;flex-direction:column;">
-            <div id="kb-status-bar" style="padding:8px;border-bottom:1px solid var(--b3-border-color);font-size:12px;display:flex;justify-content:space-between;align-items:center;">
-              <span>加载中...</span>
-              <span>
-                <button id="kb-sync-btn" class="b3-button b3-button--text" style="padding:2px 8px;font-size:12px;">同步</button>
-                <button id="kb-rebuild-btn" class="b3-button b3-button--text" style="padding:2px 8px;font-size:12px;">重建</button>
-              </span>
-            </div>
-            <div id="kb-messages" style="flex:1;overflow-y:auto;padding:12px;"></div>
-            <div id="kb-input" style="padding:8px;border-top:1px solid var(--b3-border-color);display:flex;gap:8px;">
-              <textarea id="kb-textarea" class="b3-text-field" placeholder="输入问题..." rows="2" style="flex:1;resize:none;"></textarea>
-              <button id="kb-send-btn" class="b3-button" style="flex-shrink:0;">发送</button>
-            </div>
-          </div>
-        `
+<div id="knowledge-base-dock" class="kb-dock">
+  <div class="kb-status-bar">
+    <div class="kb-status-info">
+      <span class="kb-status-text"></span>
+      <span class="kb-status-syncing" style="display:none">同步中...</span>
+    </div>
+    <div class="kb-status-actions">
+      <button id="kb-sync-btn" class="b3-button b3-button--text kb-btn-sm">同步</button>
+      <button id="kb-rebuild-btn" class="b3-button b3-button--text kb-btn-sm">重建</button>
+    </div>
+  </div>
+  <div id="kb-messages" class="kb-messages"></div>
+  <div class="kb-input-area">
+    <textarea id="kb-textarea" class="kb-input-textarea" placeholder="输入问题... Enter 发送, Shift+Enter 换行" rows="2"></textarea>
+    <button id="kb-send-btn" class="kb-send-btn">发送</button>
+  </div>
+</div>`
 
         this.initChatBindings(dock.element)
       },
@@ -224,7 +184,6 @@ export default class KnowledgeBasePlugin extends Plugin {
   private initChatBindings(container: HTMLElement): void {
     const engine = this.engine
     const app = this.app
-
     if (!engine) return
 
     const messagesEl = container.querySelector('#kb-messages') as HTMLElement
@@ -232,12 +191,21 @@ export default class KnowledgeBasePlugin extends Plugin {
     const sendBtn = container.querySelector('#kb-send-btn') as HTMLButtonElement
     const syncBtn = container.querySelector('#kb-sync-btn') as HTMLButtonElement
     const rebuildBtn = container.querySelector('#kb-rebuild-btn') as HTMLButtonElement
-    const statusBarEl = container.querySelector('#kb-status-bar') as HTMLElement
+    const statusTextEl = container.querySelector('.kb-status-text') as HTMLElement
+    const syncingEl = container.querySelector('.kb-status-syncing') as HTMLElement
 
     const updateStatus = () => {
       const status = engine.getIndexStatus()
-      statusBarEl.querySelector('span')!.textContent =
-        `\u{1F4CA} \u5DF2\u7D22\u5F15: ${status.indexedBlocks} \u5757${status.lastSyncTime ? ` | \u6700\u8FD1: ${this.formatTime(Date.now() - status.lastSyncTime)}` : ''}`
+      if (status.isSyncing) {
+        syncingEl.style.display = 'inline'
+      } else {
+        syncingEl.style.display = 'none'
+      }
+      const parts: string[] = [`\u{1F4CA} \u5DF2\u7D22\u5F15: ${status.indexedBlocks} \u5757`]
+      if (status.lastSyncTime) {
+        parts.push(`| \u6700\u8FD1: ${this.formatTime(Date.now() - status.lastSyncTime)}`)
+      }
+      statusTextEl.textContent = parts.join(' ')
     }
 
     syncBtn.addEventListener('click', () => engine.sync().then(updateStatus))
@@ -247,88 +215,59 @@ export default class KnowledgeBasePlugin extends Plugin {
     updateStatus()
 
     const appendMessage = (msg: { role: string; content: string; thinking?: string; sources?: any[] }) => {
-      const div = document.createElement('div')
-      div.style.cssText = 'margin-bottom:12px;'
+      const msgDiv = document.createElement('div')
+      msgDiv.className = 'kb-message'
 
       const label = document.createElement('div')
-      label.style.cssText = 'font-size:12px;font-weight:600;margin-bottom:4px;color:var(--b3-theme-on-surface-light);'
+      label.className = `kb-message-label ${msg.role === 'user' ? 'user' : ''}`
       label.textContent = msg.role === 'user' ? '\u4F60' : 'AI'
+      msgDiv.appendChild(label)
 
       const text = document.createElement('div')
-      text.style.cssText = 'white-space:pre-wrap;word-break:break-word;line-height:1.6;'
+      text.className = 'kb-message-text'
       text.textContent = msg.content
-
-      div.appendChild(label)
-      div.appendChild(text)
+      msgDiv.appendChild(text)
 
       if (msg.thinking) {
-        const thinkingDiv = document.createElement('div')
-        thinkingDiv.style.cssText = 'margin-top:8px;border:1px solid var(--b3-border-color);border-radius:8px;overflow:hidden;'
+        const thinkBlock = document.createElement('div')
+        thinkBlock.className = 'kb-thinking-block'
 
-        const header = document.createElement('div')
-        header.style.cssText = 'padding:6px 10px;background:var(--b3-theme-surface);cursor:pointer;font-size:12px;display:flex;justify-content:space-between;'
-        header.innerHTML = '<span>\u{1F914} \u601D\u8003\u8FC7\u7A0B</span><span>\u25B6</span>'
+        const thinkHeader = document.createElement('div')
+        thinkHeader.className = 'kb-thinking-header'
+        thinkHeader.innerHTML = '<span>\u{1F914} \u601D\u8003\u8FC7\u7A0B</span><span class="kb-thinking-toggle">\u25B6</span>'
 
-        const body = document.createElement('div')
-        body.style.cssText = 'padding:10px;font-size:12px;color:var(--b3-theme-on-surface-light);white-space:pre-wrap;display:none;'
-        body.textContent = msg.thinking
+        const thinkBody = document.createElement('div')
+        thinkBody.className = 'kb-thinking-body'
+        thinkBody.textContent = msg.thinking
 
-        header.addEventListener('click', () => {
-          const open = body.style.display !== 'none'
-          body.style.display = open ? 'none' : 'block'
-          header.querySelector('span:last-child')!.textContent = open ? '\u25B6' : '\u25BC'
+        thinkHeader.addEventListener('click', () => {
+          const isOpen = thinkBody.classList.toggle('open')
+          thinkHeader.querySelector('.kb-thinking-toggle')!.textContent = isOpen ? '\u25BC' : '\u25B6'
         })
 
-        thinkingDiv.appendChild(header)
-        thinkingDiv.appendChild(body)
-        div.appendChild(thinkingDiv)
+        thinkBlock.appendChild(thinkHeader)
+        thinkBlock.appendChild(thinkBody)
+        msgDiv.appendChild(thinkBlock)
       }
 
       if (msg.sources && msg.sources.length > 0) {
         const sourcesDiv = document.createElement('div')
-        sourcesDiv.style.cssText = 'margin-top:8px;padding-top:8px;border-top:1px solid var(--b3-border-color);'
+        sourcesDiv.className = 'kb-sources'
 
         const sourcesTitle = document.createElement('div')
-        sourcesTitle.style.cssText = 'font-size:12px;margin-bottom:6px;color:var(--b3-theme-on-surface-light);'
+        sourcesTitle.className = 'kb-sources-title'
         sourcesTitle.textContent = '\u{1F4DA} \u53C2\u8003\u6765\u6E90'
         sourcesDiv.appendChild(sourcesTitle)
 
         msg.sources.forEach((source: any, idx: number) => {
-          const sourceItem = document.createElement('div')
-          sourceItem.style.cssText = 'padding:6px 8px;margin:4px 0;background:var(--b3-theme-surface);border-radius:6px;font-size:12px;'
-
-          const info = document.createElement('div')
-          info.style.cssText = 'display:flex;justify-content:space-between;margin-bottom:4px;'
-          info.innerHTML = `<span style="font-weight:600;">[${idx + 1}] ${source.docName}</span><span>\u76F8\u4F3C\u5EA6: ${source.score.toFixed(2)}</span>`
-
-          const preview = document.createElement('div')
-          preview.style.cssText = 'color:var(--b3-theme-on-surface-light);margin-bottom:4px;'
-          preview.textContent = source.content
-
-          const link = document.createElement('button')
-          link.style.cssText = 'font-size:11px;color:var(--b3-theme-primary);background:none;border:1px solid var(--b3-theme-primary);border-radius:4px;cursor:pointer;padding:2px 6px;'
-          link.textContent = '\u8DF3\u8F6C\u5230\u7B14\u8BB0 \u2192'
-          link.addEventListener('click', () => {
-            openTab({
-              app,
-              doc: {
-                id: source.blockId,
-                action: ['cb-get-focus'],
-                zoomIn: true,
-              },
-            })
-          })
-
-          sourceItem.appendChild(info)
-          sourceItem.appendChild(preview)
-          sourceItem.appendChild(link)
+          const sourceItem = this.buildSourceItem(source, idx, app)
           sourcesDiv.appendChild(sourceItem)
         })
 
-        div.appendChild(sourcesDiv)
+        msgDiv.appendChild(sourcesDiv)
       }
 
-      messagesEl.appendChild(div)
+      messagesEl.appendChild(msgDiv)
       messagesEl.scrollTop = messagesEl.scrollHeight
     }
 
@@ -343,24 +282,22 @@ export default class KnowledgeBasePlugin extends Plugin {
       try {
         const stream = await engine.chat(text)
 
-        let currentMsg: any = null
         for await (const msg of stream) {
-          if (!currentMsg) {
-            currentMsg = msg
-            appendMessage({
-              role: msg.role,
-              content: msg.content,
-              thinking: msg.thinking,
-              sources: msg.sources,
-            })
-          } else {
-            const lastEl = messagesEl.lastElementChild
-            if (lastEl && lastEl.querySelector('div:nth-child(2)')) {
-              const textEl = lastEl.querySelector('div:nth-child(2)') as HTMLElement
+          const lastEl = messagesEl.lastElementChild
+          if (lastEl) {
+            const textEl = lastEl.querySelector('.kb-message-text') as HTMLElement
+            if (textEl) {
               textEl.textContent = msg.content
+            } else {
+              appendMessage({
+                role: msg.role,
+                content: msg.content,
+                thinking: msg.thinking,
+                sources: msg.sources,
+              })
             }
-            messagesEl.scrollTop = messagesEl.scrollHeight
           }
+          messagesEl.scrollTop = messagesEl.scrollHeight
         }
       } catch (error) {
         appendMessage({
@@ -379,6 +316,38 @@ export default class KnowledgeBasePlugin extends Plugin {
         sendMessage()
       }
     })
+  }
+
+  private buildSourceItem(source: any, idx: number, app: any): HTMLElement {
+    const item = document.createElement('div')
+    item.className = 'kb-source-item'
+
+    const header = document.createElement('div')
+    header.className = 'kb-source-header'
+    header.innerHTML = `<span class="kb-source-name">[${idx + 1}] ${source.docName}</span><span class="kb-source-score">\u76F8\u4F3C\u5EA6: ${source.score.toFixed(2)}</span>`
+    item.appendChild(header)
+
+    const preview = document.createElement('div')
+    preview.className = 'kb-source-preview'
+    preview.textContent = source.content
+    item.appendChild(preview)
+
+    const link = document.createElement('button')
+    link.className = 'kb-source-link'
+    link.textContent = '\u8DF3\u8F6C\u5230\u7B14\u8BB0 \u2192'
+    link.addEventListener('click', () => {
+      openTab({
+        app,
+        doc: {
+          id: source.blockId,
+          action: ['cb-get-focus'],
+          zoomIn: true,
+        },
+      })
+    })
+    item.appendChild(link)
+
+    return item
   }
 
   private formatTime(ms: number): string {
