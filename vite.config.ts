@@ -1,61 +1,31 @@
-import { defineConfig, loadEnv, Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { viteStaticCopy } from 'vite-plugin-static-copy'
 import { resolve } from 'path'
-import { copyFileSync, readdirSync, mkdirSync, existsSync } from 'fs'
+import { copyFileSync, existsSync } from 'fs'
 
-function siyuanCopyPlugin(): Plugin {
+function copySingleFile(srcPath: string, destPath: string, required = true): void {
+  if (!existsSync(srcPath)) {
+    if (required) {
+      throw new Error(`[siyuan-copy] missing required file: ${srcPath}`)
+    }
+    return
+  }
+  copyFileSync(srcPath, destPath)
+}
+
+function siyuanSingleFilePlugin(files: Array<{ src: string; required?: boolean }>): Plugin {
   let outDir = ''
   return {
-    name: 'siyuan-copy',
+    name: 'siyuan-copy-single',
     apply: 'build',
     enforce: 'post',
     configResolved(config) {
       outDir = config.build.outDir
     },
     writeBundle() {
-      const copyFile = (src: string, dest: string, optional = false): void => {
-        if (!existsSync(src)) {
-          if (!optional) console.warn(`[siyuan-copy] missing required file: ${src}`)
-          return
-        }
-        try {
-          copyFileSync(src, dest)
-        } catch (err) {
-          console.error(`[siyuan-copy] failed to copy ${src} -> ${dest}:`, err)
-        }
-      }
-      const safeReaddir = (dir: string): string[] => {
-        try {
-          return readdirSync(dir)
-        } catch (err) {
-          console.error(`[siyuan-copy] failed to read ${dir}:`, err)
-          return []
-        }
-      }
-
-      copyFile(resolve(__dirname, 'plugin.json'), resolve(outDir, 'plugin.json'))
-      copyFile(resolve(__dirname, 'icon.png'), resolve(outDir, 'icon.png'), true)
-      copyFile(resolve(__dirname, 'preview.png'), resolve(outDir, 'preview.png'), true)
-
-      for (const file of safeReaddir(__dirname)) {
-        if (file.startsWith('README') && file.endsWith('.md')) {
-          copyFile(resolve(__dirname, file), resolve(outDir, file), true)
-        }
-      }
-
-      const i18nSrcDir = resolve(__dirname, 'src', 'i18n')
-      const i18nDestDir = resolve(outDir, 'i18n')
-      if (existsSync(i18nSrcDir)) {
-        try {
-          if (!existsSync(i18nDestDir)) mkdirSync(i18nDestDir, { recursive: true })
-          for (const file of safeReaddir(i18nSrcDir)) {
-            if (file.endsWith('.json')) {
-              copyFile(resolve(i18nSrcDir, file), resolve(i18nDestDir, file))
-            }
-          }
-        } catch (err) {
-          console.error(`[siyuan-copy] failed to setup i18n directory:`, err)
-        }
+      for (const f of files) {
+        copySingleFile(resolve(__dirname, f.src), resolve(outDir, f.src), f.required)
       }
     },
   }
@@ -74,7 +44,18 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      siyuanCopyPlugin(),
+      siyuanSingleFilePlugin([
+        { src: 'plugin.json', required: true },
+        { src: 'icon.png', required: true },
+        { src: 'preview.png', required: false },
+      ]),
+      viteStaticCopy({
+        targets: [
+          { src: 'README*.md', dest: '.' },
+          { src: 'src/i18n/*.json', dest: 'i18n' },
+        ],
+        silent: true,
+      }),
     ],
     build: {
       outDir: distDir,

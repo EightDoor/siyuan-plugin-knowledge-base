@@ -11,6 +11,7 @@ export class OllamaEmbeddingProvider extends BaseEmbeddingProvider {
     this.baseUrl = (config.baseUrl || 'http://localhost:11434').replace(/\/+$/, '')
     this.model = config.model || 'nomic-embed-text'
     this.dimensions = 768
+    console.log(`[OllamaEmbeddingProvider] initialized with model=${this.model} baseUrl=${this.baseUrl}`)
   }
 
   async embed(texts: string[]): Promise<number[][]> {
