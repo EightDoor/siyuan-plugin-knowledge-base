@@ -96,6 +96,7 @@ declare module 'siyuan' {
     data: any
     displayName: string
     name: string
+    setting: Setting
 
     constructor(options: {
       app: App
@@ -127,6 +128,7 @@ declare module 'siyuan' {
       callback: (event: MouseEvent) => void
     }): HTMLElement
     addStatusBar(options: { element: HTMLElement }): void
+    addTab(options: any): any
 
     loadData(storageName: string): Promise<any>
     saveData(storageName: string, data: any): Promise<any>
