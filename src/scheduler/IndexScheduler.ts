@@ -5,8 +5,6 @@ import { HashCache } from '../utils/hash'
 import { chunkByBlock } from '../utils/chunk'
 import { querySQL } from '../utils/siyuan'
 
-const STATE_FILE = 'index-state.json'
-
 export interface SchedulerState {
   hashCache: Record<string, string>
   indexedBlocks: number
@@ -71,6 +69,10 @@ export class IndexScheduler {
     if (this.syncTimer) {
       clearInterval(this.syncTimer)
       this.syncTimer = null
+    }
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer)
+      this.saveDebounceTimer = null
     }
     this.flushState()
   }

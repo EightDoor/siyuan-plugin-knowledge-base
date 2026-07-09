@@ -322,10 +322,20 @@ export default class KnowledgeBasePlugin extends Plugin {
     const item = document.createElement('div')
     item.className = 'kb-source-item'
 
-    const header = document.createElement('div')
-    header.className = 'kb-source-header'
-    header.innerHTML = `<span class="kb-source-name">[${idx + 1}] ${source.docName}</span><span class="kb-source-score">\u76F8\u4F3C\u5EA6: ${source.score.toFixed(2)}</span>`
-    item.appendChild(header)
+      const header = document.createElement('div')
+      header.className = 'kb-source-header'
+
+      const nameSpan = document.createElement('span')
+      nameSpan.className = 'kb-source-name'
+      nameSpan.textContent = `[${idx + 1}] ${source.docName}`
+      header.appendChild(nameSpan)
+
+      const scoreSpan = document.createElement('span')
+      scoreSpan.className = 'kb-source-score'
+      scoreSpan.textContent = `\u76F8\u4F3C\u5EA6: ${source.score.toFixed(2)}`
+      header.appendChild(scoreSpan)
+
+      item.appendChild(header)
 
     const preview = document.createElement('div')
     preview.className = 'kb-source-preview'
