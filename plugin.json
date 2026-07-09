@@ -1,0 +1,25 @@
+{
+  "name": "siyuan-plugin-knowledge-base",
+  "author": "Your Name",
+  "url": "https://github.com/yourname/siyuan-plugin-knowledge-base",
+  "version": "1.0.0",
+  "minAppVersion": "3.0.0",
+  "backends": ["windows", "linux", "docker"],
+  "frontends": ["desktop"],
+  "displayName": {
+    "default": "Knowledge Base",
+    "zh_CN": "知识库"
+  },
+  "description": {
+    "default": "RAG-powered knowledge base for SiYuan",
+    "zh_CN": "基于 RAG 的思源知识库插件"
+  },
+  "readme": {
+    "default": "README.md",
+    "zh_CN": "README_zh_CN.md"
+  },
+  "funding": {
+    "custom": []
+  },
+  "keywords": ["rag", "knowledge-base", "ai", "embedding"]
+}
