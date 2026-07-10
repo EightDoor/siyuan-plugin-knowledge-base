@@ -12,16 +12,17 @@ export class OpenAIEmbeddingProvider extends BaseEmbeddingProvider {
     this.baseUrl = (config.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')
     this.model = config.model || 'text-embedding-3-small'
     this.apiKey = config.apiKey || ''
-    this.dimensions = 1536
+    this.dimensions = config.dimensions || 1536
   }
 
   async embed(texts: string[]): Promise<number[][]> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.apiKey) {
+      headers.Authorization = `Bearer ${this.apiKey}`
+    }
     const resp = await fetch(`${this.baseUrl}/embeddings`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({ model: this.model, input: texts }),
     })
 

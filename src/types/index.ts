@@ -20,6 +20,7 @@ export interface EmbeddingConfig {
   model?: string
   apiKey?: string
   localModel?: string
+  dimensions?: number
 }
 
 export interface VectorStoreConfig {

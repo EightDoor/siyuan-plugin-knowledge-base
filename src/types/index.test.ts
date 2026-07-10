@@ -16,6 +16,17 @@ describe('EmbeddingConfig', () => {
     expect(config.mode).toBe('remote')
   })
 
+  it('should support dimensions for custom embedding models', () => {
+    const config: EmbeddingConfig = {
+      mode: 'remote',
+      provider: 'openai',
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'bge-m3',
+      dimensions: 1024,
+    }
+    expect(config.dimensions).toBe(1024)
+  })
+
   it('should support localModel for local mode', () => {
     const config: EmbeddingConfig = {
       mode: 'local',

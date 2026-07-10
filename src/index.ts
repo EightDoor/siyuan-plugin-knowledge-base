@@ -1,7 +1,6 @@
 import { Plugin, Setting, openTab, showMessage } from 'siyuan'
 import type { PluginConfig } from './types'
 import { KnowledgeEngine } from './core/KnowledgeEngine'
-import type { SchedulerState } from './scheduler/IndexScheduler'
 import './style.css'
 
 const CONFIG_FILE = 'config.json'
